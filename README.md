@@ -159,3 +159,93 @@ The next step is to create the database so we can start using it.
 Activate virtual environment, and navigate to the folder where `manage.py` is, and type:
 
     python manage.py makemigrations
+
+This will create a file named `0001_initial.py` inside the `boards/migrations` directory. It represents the current state of our app's models.
+
+The migration files are translated into SQL statements. If you are familiar with SQL, you can run the following command to inspect the SQL instructions that will be executed in the database:
+
+    python manage.py sqlmigrate boards 0001
+
+### Apply Migration to Database
+
+    python manage.py migrate
+
+Database is now ready for use.
+
+### Experimenting with the Models API
+
+One advantage of Python is the interactive shell. You can quickly try things out and experiment with libraries and APIs.
+
+You can start a Python shell within our project using the manage.py utility:
+
+    python manage.py shell
+
+This is similar to calling the interactive console just by typing `python`, except when we use `python manage.py shell`, we are adding our project to the `sys.path` and loading Django. That means we can import our models and any other resource within the project and play with it.
+
+Start by importing the `Board` class:
+
+    from boards.models import Board
+
+To create a new board object, do the following:
+
+    board = Board(name='Django', description='This is a board about Django.')
+
+To persist the object in the database, call the `save` method:
+
+    board.save()
+
+The `save` method is used to both *create* and *update* objects. Here Django created a new object because the `Board` instance had no `id`. After saving it for the first time, Django will set the id automatically:
+
+    board.id
+
+You can access the rest of the fields as Python attributes:
+
+    board.name
+    board.description
+
+To update a value:
+
+    board.description = 'Django discussion board.'
+    board.save()
+
+Every Django model comes with a special attribute called a `Model Manager`. It is used mainly to execute queries in the database. For example, we could use it to directly create a new `Board` object:
+
+    board = Board.objects.create(name='Python', description='General discussion about Python.')
+
+    board.id
+    board.name
+    board.description
+
+You can use `objects` to list all existing boards in the database:
+
+    Board.objects.all()
+
+To exit the interactive console, type:
+
+    exit()
+
+You can use the `Model Manager` to query the database and return a single object:
+
+    django_board = Board.objects.get(id=1)
+
+    django_board.name
+
+You can use the `get` method with any model field, but preferrably use a field that can uniquely identify an object. Otherwise, you may return more than one object, which will cause an error.
+
+**NOTE: The queries are case sensitive.**
+
+### Summary of Model's Operations
+
+In these examples, uppercase `Board` refers to the class, while lowercase `board` refers to an instance (or object) of the `Board` model class:
+
+| Operation | Code Sample |
+| --- | --- |
+| Create an object without saving | `board = Board()` |
+| Save an object (create or update) | `board.save()` |
+| Create and save an objeect in the database | `Board.objects.create(name='...', description='...')` |
+| List all objects | `Board.objects.all()` |
+| Get a single object, id'd by field | `Board.objects.get(id=1)` |
+
+### Views, Templates, and Static Files
+
+
