@@ -28,7 +28,7 @@ Another thing of note, is that the pip program is installed as well, and when we
 
 Note that when we have the venv activated, we will use the command `python` (instead of python3) to refer to Python, and just `pip` (instead of pip3) to install packages.
 
-To deactivate a venv, use `deactivate`.
+To deactivate (exit) a venv, use `deactivate`.
 
 #### Install Django
 
