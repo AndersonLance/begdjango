@@ -494,4 +494,8 @@ Up to this point, we are adding new boards using the interactive console (`pytho
 
 ### Django Admin
 
+Configure an administrator account:
+
+    python manage.py createsuperuser
+
 
