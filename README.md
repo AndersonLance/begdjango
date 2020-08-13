@@ -19,6 +19,8 @@ The Complete Beginner's Guide to Django:
 	* cd into directory for a project, then: `virtualenv venv -p python3`
 4. Activate virtual environment
 	* `source venv/bin/activate`
+5. Run Python Development Server
+    * `python manage.py runserver`
 
 #### So what did we just do?
 
@@ -247,5 +249,249 @@ In these examples, uppercase `Board` refers to the class, while lowercase `board
 | Get a single object, id'd by field | `Board.objects.get(id=1)` |
 
 ### Views, Templates, and Static Files
+
+Right now, there is a simple view called home being displayed on our server. (urls.py and boards/views.py) We can use this as a starting point. What we want to do is to display a list of boards in a table alongside some other information.
+
+The first thing to do is to import the `Board` model and list all the existing boards:
+
+boards/views.py:
+
+    from django.http import HttpResponse
+    from .models import Board
+
+    def home(request):
+        boards = Board.objects.all()
+        boards_names = list()
+
+        for board in boards:
+            boards_names.append(board.name)
+        
+        response_html = '<br>'.join(boards_names)
+
+        return HttpResponse(response_html)
+
+And the result would be a simple HTML page that just brings back the names of the two boards we created earlier: Django and Python. But this is not how we really want to be rendering HTML, we should use the `Django Template Engine`.
+
+Create a new folder named `templates` alongside with the `boards` folder. Within the new templates folder you just created, create a file named `home.html`:
+
+    <!DOCTYPE html>
+    <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Boards</title>
+        </head>
+        <body>
+            <h1>Boards</h1>
+
+            {% for board in boards %}
+            {{ board.name }} <br>
+            {% endfor %}
+
+        </body>
+    </html>
+
+In this file, we mix raw HTML with some special tags `{% for ... in ... %}` and `{{variable}}`. They are part of the Django Template language. This shows how to iterate over a list of objects using a `for`. The `{{ board.name }}` renders the name of the board in the HTML template, generating a dynamic HTML document.
+
+Before using this HTML page, we have to tell Django where to find our application's templates.
+
+Open `settings.py` and search for the `TEMPLATES` variable and set the `DIRS` key to `os.path.join(BASE_DIR, 'templates'):
+
+    TEMPLATES = [
+        {
+            'BACKEND': 'django.template.backends.django.DjangoTemplates',
+            'DIRS': [
+                os.path.join(BASE_DIR, 'templates')
+            ],
+            'APP_DIRS': True,
+            'OPTIONS': {
+                'context_processors': [
+                    'django.template.context_processors.debug',
+                    'django.template.context_processors.request',
+                    'django.contrib.auth.context_processors.auth',
+                    'django.contrib.messages.context_processors.messages',
+                ],
+            },
+        },
+    ]
+
+This is finding the full path of your project directory and appending '/templates' to it.
+
+Now we can update the `home` view
+boards/views.py:
+
+    from django.shortcuts import render
+    from .models import Board
+
+    def home(request):
+        boards = Board.objects.all()
+        return render(request, 'home.html', {'boards' : boards})
+        boards_names = list()
+
+Now, you can improve the HTML template to use a table instead in the `templates/home.html` file.
+
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>Boards</title>
+    </head>
+    <body>
+        <h1>Boards</h1>
+
+        <table border="1">
+            <thead>
+                <tr>
+                    <th>Board</th>
+                    <th>Posts</th>
+                    <th>Topics</th>
+                    <th>Last Post</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for board in boards %}
+                    <tr>
+                        <td>
+                            {{ board.name }}<br>
+                            <small style="color: #888">{{ board.description }}</small>
+                        </td>
+                        <td>0</td>
+                        <td>0</td>
+                        <td></td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </body>
+    </html>
+
+#### Testing the Homepage
+
+Let's write our first test. For now we will work with the `tests.py` file inside the `boards` app:
+
+boards/tests.py:
+
+    from django.urls import reverse
+    from django.test import TestCase
+
+    # Create your tests here.
+    class HomeTests(TestCase):
+        def test_home_view_status_code(self):
+            url = reverse('home')
+            response = self.client.get(url)
+            self.assertEquals(response.status_code, 200)
+
+This is a very simple test that tests the status code of the response. Status code 200 means success. You can check the status code of the response in the console:
+
+`[13/Aug/2020 19:33:22] "GET / HTTP/1.1" 200 1065`
+
+If there were an error, exception, syntax error, etc. Django would reaturn a status code 500 instead, which means internal server error. Now imagine an app with 100+ views. If we wrote this test for all of our views, with just one command you would be able to test if all of the views were returning a success code. Without automated tests, you'd have to check each page one by one.
+
+To execute Django's test suite:
+
+    python manage.py test
+
+Now we can test to see if the correct view function was returned for the requested URL.
+
+boards/tests.py:
+
+    from django.urls import reverse
+    from django.urls import resolve
+    from django.test import TestCase
+    from .views import home
+
+    # Create your tests here.
+    class HomeTests(TestCase):
+        def test_home_view_status_code(self):
+            url = reverse('home')
+            response = self.client.get(url)
+            self.assertEquals(response.status_code, 200)
+        def test_home_url_resolves_home_view(self):
+            view = resolve('/')
+            self.assertEquals(view.func, home)
+
+This test makes use of the `resolve` function. Django uses it to match a requested URL with a list of URLs listed in the `urls.py` module. This will make sure the URL `/` is returning the home view. Test it again:
+
+    python manage.py test
+
+#### Static Files Setup
+
+Static files are the CSS, JS, Fonts, Images, etc. As-is, Django doesn't serve those files, except during the development process. However, Django does provide some features to help us manage the static files: Those features are available in `django.contrib.staticfiles` app already listed in the `INSTALLED_APPS` configuration.
+
+We can easily add Bootstrap 4 to the project. In the project root dir, alongside boards and templates, create a new folder named `static` and within that folder create another folder called `css`. Download Bootstrap 4 (Compiled CSS and JS). Extract bootstrap.min.css file into the newly created css folder in our project. Next, instruct Django where to find the static files.
+
+Open `settings.py`, scroll to the bottom and just after the `STATIC_URL`, add:
+
+    STATICFILES_DIRS = [
+        os.path.join(BASE_DIR, 'static'),
+    ]
+
+Same thing as the `TEMPLATES` dir earlier.
+
+Now, load the static files into our template
+
+templates/home.html:
+
+    {% load static %}<!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>Boards</title>
+        <link rel="stylesheet" href="{% static 'css/bootstrap.min.css' %}">
+    </head>
+    <body>
+        <!-- body suppressed for brevity ... -->
+    </body>
+    </html>
+
+First, we are loading the static files template tags by using `{% load static}` Then, the template tag `{% static %}` is used to compose a URL for where the resource lives.
+
+The `{% static %}` tag uses the `STATIC_URL` configuration set in the `settings.py` file.
+
+Now, if you run the server and refresh the page, you will see that the Bootstrap CSS is being applied. Now you can manage the home template to take advantage of the Bootstrap CSS classes.
+
+templates/home.html:
+
+    {% load static %}<!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>Boards</title>
+        <link rel="stylesheet" href="{% static 'css/bootstrap.min.css' %}">
+    </head>
+    <body>
+        <div class="container">
+        <ol class="breadcrumb my-4">
+            <li class="breadcrumb-item active">Boards</li>
+        </ol>
+        <table class="table">
+            <thead class="thead-inverse">
+            <tr>
+                <th>Board</th>
+                <th>Posts</th>
+                <th>Topics</th>
+                <th>Last Post</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for board in boards %}
+                <tr>
+                <td>
+                    {{ board.name }}
+                    <small class="text-muted d-block">{{ board.description }}</small>
+                </td>
+                <td class="align-middle">0</td>
+                <td class="align-middle">0</td>
+                <td></td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </body>
+    </html>
+
+Up to this point, we are adding new boards using the interactive console (`python manage.py shell`), but there is a better way: The Django Admin Interface.
+
+### Django Admin
 
 
