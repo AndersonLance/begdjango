@@ -498,4 +498,20 @@ Configure an administrator account:
 
     python manage.py createsuperuser
 
+This will pull up a wizard to walk you through creating an account name, email, password, etc.
 
+If you now browse to your dev server `/admin/` you will now go to a login screen. (127.0.0.1:8000/admin/)
+
+Enter the username and password just created and you will be taken to the admin interface. From here you can add users and groups to manage permissions.
+
+To add the `Board` model, open `admin.py` file in the boards folder, and add the following:
+
+admin.py:
+
+    from django.contrib import admin
+    from .models import Board
+    # Register your models here.
+
+    admin.site.register(Board)
+
+After saving and refreshing, you should see it listed in the admin web interface. You can add a new board by clicking on the Add Board button. If you add a new board and save, you can refresh the home page and should see the new board displayed.
