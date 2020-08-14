@@ -515,3 +515,87 @@ admin.py:
     admin.site.register(Board)
 
 After saving and refreshing, you should see it listed in the admin web interface. You can add a new board by clicking on the Add Board button. If you add a new board and save, you can refresh the home page and should see the new board displayed.
+
+## Notes - Part 3
+
+URLS and Forms
+
+### URLS
+
+Implement a new page to list all the topics that belong to a given `Board`.
+
+Modify `urls.py`:
+
+    from django.conf.urls import url
+    from django.contrib import admin
+
+    from boards import views
+
+    urlpatterns = [
+        url(r'^$', views.home, name='home'),
+        url(r'^boards/(?P<pk>\d+)/$', views.board_topics, name='board_topics'),
+        url(r'^admin/', admin.site.urls),
+    ]
+
+The URL dispatcher and `URLconf` are fundamental parts of a Django app. A project can have many `urls.py` dtributed among the apps. But Django needs a `url.py` to use as a starting point. This special `urls.py` file is called `root URLconf`. It is defined in the `settings.py` file.
+
+settings.py:
+
+    ROOT_URLCONF = 'begdjango_project.urls'
+
+It is already configured, no need to change anything.
+
+When Django receives a request, it starts searching for a match in the project's URLconf. It starts with the first entry of the `urlpatterns` variable, and tests the requested URL against each `url` entry.
+
+If Django finds a match, it will pass the request to the `view function`, which is the second parameter of the `url`. The order in `urlpatterns` matters, because Django will stop searching as soon as it finds a match. If a match isn't found, it will raise a 404 exception.
+
+Anatomy of the `url` function:
+
+    def url(regex, view, kwargs=None, name=None):
+        # ...
+    
+* regex: Regular expression for matching patterns in strings
+* view: A view function used to process the user request for a matched URL.
+* kwargs: Arbitrary keyword arguments that are passed to the target view.
+* name: Unique identifier for a given URL.
+
+#### Basic URLs
+
+Just a matter of matching strings. For example, let's say we wanted an 'about' page:
+
+    from django.conf.urls import url
+    from boards import views
+
+    urlpatterns = [
+        url(r'^$', views.home, name='home'),
+        url(r'^about/$', views.about, name='about'),
+    ]
+
+Or, some deeper URL structures:
+
+    from django.conf.urls import url
+    from boards import views
+
+    urlpatterns = [
+        url(r'^$', views.home, name='home'),
+        url(r'^about/$', views.about, name='about'),
+        url(r'^about/company/$', views.about_company, name='about_company'),
+        url(r'^about/author/$', views.about_author, name='about_author'),
+        url(r'^about/author/vitor/$', views.about_vitor, name='about_vitor'),
+        url(r'^about/author/erica/$', views.about_erica, name='about_erica'),
+        url(r'^privacy/$', views.privacy_policy, name='privacy_policy'),
+    ]
+
+Those are examples of simple URL routing, and for all of those examples above, the view function will follow this structure:
+
+    def about(request):
+        # do something...
+        return render(request, 'about.html')
+    
+    def about_company(request):
+        # do something else...
+        # return some data long with the view...
+        return render(request, 'about_company.html', {'company_name': 'Simple Complex'})
+
+#### Advanced URLs
+
