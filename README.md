@@ -599,3 +599,258 @@ Those are examples of simple URL routing, and for all of those examples above, t
 
 #### Advanced URLs
 
+A more advanced usage of URL routing can take advantage of regex to match certain types of data and create dynamic URLs.
+
+For example, to create a profile page, like many services do like github.com/vitorfs or twitter.com/vitorfs, where 'vitorfs' is a username, you can do the following:
+
+    from django.conf.urls import url
+    from boards import views
+
+    url patterns = [
+        url(r'^$', views.home, name='home'),
+        url(r'^(?P<username>[\w.@+-]+)/$', views.user_profile, name='user_profile'),
+    ]
+
+This example is a very permissive URL, meaning it will match lots of URL patterns. If we want to define a URL named /about/, we would have to define it BEFORE the username URL pattern. Otherwise, Django would never find it because the word "about" would match the username regex, and the view user_profile would be processed instead of the `about` view function. There would also be some side effects to this, we would have to make sure 'about' is a forbidden username, otherwise that person would never see their profile page.
+
+Let's look at an example from earlier:
+
+    url(r'^boards/(?P<pk>\d+)/$', views.board_topics, name='board_topics')
+
+The regex `\d+` will match an integer of arbitrary size. This integer will be used to retrieve the `Board` from the database. Now observe that we wrote the regex as `(?P<pk>\d+)`, this is telling Django to capture the value into a keyword argument named `pk`.
+
+Here is how you would write a view function for it:
+
+    def board_topics(request, pk):
+        # do something...
+
+Because we used the `(?P<pk>\d+)` regex, the keyword argument in the `board_topics` must be named `pk`.
+
+#### Using the URLs API
+
+Edit `urls.py` adding our new URL route:
+
+    from django.contrib import admin
+    from django.conf.urls import url
+
+    from boards import views
+
+    urlpatterns = [
+        url(r'^$', views.home, name='home'),
+        url(r'^boards/(?P<pk>\d+)/$', views.board_topics, name='board_topics'),
+        url('admin/', admin.site.urls),
+    ]
+
+Now create the view funciton `board_topics` in `boards/views.py`:
+
+    from django.shortcuts import render
+    from .models import Board
+
+    def home(request):
+        boards = Board.objects.all()
+        return render(request, 'home.html', {'boards' : boards})
+        boards_names = list()
+
+    def board_topics(request, pk):
+        board = Board.objects.get(pk=pk)
+        return render(request, 'topics.html', {'board': board})
+
+In the templates folder, create a new template named `topics.html`:
+
+    {% load static %}<!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>{{ board.name }}</title>
+        <link rel="stylesheet" href="{% static 'css/bootstrap.min.css' %}">
+    </head>
+    <body>
+        <div class="container">
+        <ol class="breadcrumb my-4">
+            <li class="breadcrumb-item">Boards</li>
+            <li class="breadcrumb-item active">{{ board.name }}</li>
+        </ol>
+        </div>
+    </body>
+    </html>
+
+Now if you view your site in the browser, you should see a page at: http://127.0.0.1:8000/boards/1/
+
+Now we can update `tests.py` and add the following tests at the bottom:
+
+    from django.urls import reverse
+    from django.urls import resolve
+    from django.test import TestCase
+    from .views import home, board_topics
+    from .models import Board
+
+    # Create your tests here.
+    class HomeTests(TestCase):
+        def test_home_view_status_code(self):
+            url = reverse('home')
+            response = self.client.get(url)
+            self.assertEquals(response.status_code, 200)
+        def test_home_url_resolves_home_view(self):
+            view = resolve('/')
+            self.assertEquals(view.func, home)
+
+    class BoardTopicsTests(TestCase):
+        def setUp(self):
+            Board.objects.create(name='Django', description='Django board.')
+
+    def test_board_topics_view_success_status_code(self):
+        url = reverse('board_topics', kwargs={'pk': 1})
+        response = self.client.get(url)
+        self.assertEquals(response.status_code, 200)
+
+    def test_board_topics_view_not_found_status_code(self):
+        url = reverse('board_topics', kwargs={'pk': 99})
+        response = self.client.get(url)
+        self.assertEquals(response.status_code, 404)
+
+    def test_board_topics_url_resolves_board_topics_view(self):
+        view = resolve('/boards/1/')
+        self.assertEquals(view.func, board_topics)
+
+Now, run the tests:
+
+    python manage.py test
+
+It fails: `test_board_topics_view_not_found_status_code`
+
+In production with `DEBUG=False`, the visitor would see a 500 Internal Server Error page, but that's not what we want. We want to show a 404 page, so in `boards/views.py`:
+
+    from django.shortcuts import render
+    from django.http import Http404
+    from .models import Board
+
+    def home(request):
+        boards = Board.objects.all()
+        return render(request, 'home.html', {'boards' : boards})
+        boards_names = list()
+
+    def board_topics(request, pk):
+        try:
+            board = Board.objects.get(pk=pk)
+        except Board.DoesNotExist:
+            raise Http404
+        return render(request, 'topics.html', {'board': board})
+
+And then test again:
+
+    python manage.py test
+
+This time, it passes. If you re-start the python server, and browse to a board that doesn't exist (e.g., http://127.0.0.1:8000/boards/99/) you will see a 404 error page.
+
+This is a common use case, and Django actually has a shortcut to try to get an object, or return a 404 if the object doesn't exist. Let's refactor the `board_topics` view again:
+
+    from django.shortcuts import render, get_object_or_404
+    from .models import Board
+
+    def home(request):
+        boards = Board.objects.all()
+        return render(request, 'home.html', {'boards' : boards})
+        boards_names = list()
+
+    def board_topics(request, pk):
+        board = get_object_or_404(Board, pk=pk)
+        return render(request, 'topics.html', {'board': board})
+
+Now test it again
+
+    python manage.py test
+
+It should pass. Notice that we changed what we imported from django.shortcuts and removed the Http404 import because it was no longer needed.
+
+Next, we need to create navigation links on the screens. Start by writing some tests for the `HomeTests` class.
+
+boards/tests.py:
+
+    class HomeTests(TestCase):
+    def setUp(self):
+        self.board = Board.objects.create(name='Django', description='Django board.')
+        url = reverse('home')
+        self.response = self.client.get(url)
+
+    def test_home_view_status_code(self):
+        url = reverse('home')
+        response = self.client.get(url)
+        self.assertEquals(response.status_code, 200)
+
+    def test_home_url_resolves_home_view(self):
+        view = resolve('/')
+        self.assertEquals(view.func, home)
+
+    def test_home_view_contains_link_to_topics_page(self):
+        board_topics_url = reverse('board_topics', kwargs={'pk': self.board.pk})
+        self.assertContains(self.response, 'href="{0}"'.format(board_topics_url))
+
+We added a `setUp` method for HomeTests as well as the `test_home_view_contains_link_to_topics_page`. Here we use the `assertContains` method to test if the response body contains a given text. The text for this test, is the `href` part of an `a` tag. Basically, we are testing if the response body has the text `href="/boards/1/".
+
+Now run the tests:
+
+    python manage.py test
+
+It will fail, until we write the code to make this test pass.
+
+templates/home.html:
+
+    <!-- earlier code suppressed for brevity -->
+     <tbody>
+          {% for board in boards %}
+            <tr>
+              <td>
+                <a href="{% url 'board_topics' board.pk %}">{{ board.name }}</a>
+                <small class="text-muted d-block">{{ board.description }}</small>
+              </td>
+              <td class="align-middle">0</td>
+              <td class="align-middle">0</td>
+              <td></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+        <!-- later code suppressed for brevity -->
+
+Always use the `{% url %}` template tag to compose the app URLs. Save home.html and test again.
+
+    python manage.py test
+
+Now, the link back. First write the test in boards/tests.py:
+
+    class BoardTopicsTests(TestCase):
+        # earlier code suppressed for brevity
+
+        def test_board_topics_view_contains_link_back_to_homepage(self):
+        board_topics_url = reverse('board_topics', kwargs={'pk': 1})
+        response = self.client.get(board_topics_url)
+        homepage_url = reverse('home')
+        self.assertContains(response, 'href="{0}"'.format(homepage_url))
+
+Run tests:
+
+    python manage.py test
+
+It will fail, now update templates/topics.html:
+
+    {% load static %}<!DOCTYPE html>
+    <html>
+    <head><!-- code suppressed for brevity --></head>
+    <body>
+        <div class="container">
+        <ol class="breadcrumb my-4">
+            <li class="breadcrumb-item"><a href="{% url 'home' %}">Boards</a></li>
+            <li class="breadcrumb-item active">{{ board.name }}</li>
+        </ol>
+        </div>
+    </body>
+    </html>
+
+And re-run tests:
+
+    python manage.py test
+
+It will now pass.
+
+### Reusable Templates
+
+
